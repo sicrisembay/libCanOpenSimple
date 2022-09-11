@@ -18,6 +18,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Collections.Concurrent;
+using Peak.Can.Basic;
+using TPCANHandle = System.Byte;
 
 namespace libCanopenSimple
 {
@@ -114,8 +116,8 @@ namespace libCanopenSimple
     /// </summary>
     public class libCanopenSimple
     {
+        private can_hw.pcan_usb pcan;
 
-      
         public debuglevel dbglevel = debuglevel.DEBUG_NONE;
        
         DriverInstance driver;
@@ -136,6 +138,8 @@ namespace libCanopenSimple
                 NMTState nmt = new NMTState();
                 nmtstate[x] = nmt;
             }
+
+            this.pcan = new can_hw.pcan_usb();
         }
 
         #region driverinterface
@@ -147,6 +151,7 @@ namespace libCanopenSimple
         /// <param name="comport">COM PORT number</param>
         /// <param name="speed">CAN Bit rate</param>
         /// <param name="drivername">Driver to use</param>
+#if false
         public void open(string comport, BUSSPEED speed, string drivername)
         {
 
@@ -162,6 +167,23 @@ namespace libCanopenSimple
 
             if (connectionevent != null) connectionevent(this, new ConnectionChangedEventArgs(true));
 
+        }
+#endif
+
+        public void open(TPCANHandle pcanHandle, TPCANBaudrate baudrate)
+        {
+            if (this.pcan.Connect(pcanHandle, baudrate)) {
+                this.pcan.CanRxMsgEvent += this.Driver_pcan_rxmessage;
+                this.threadrun = true;
+                Thread thread = new Thread(new ThreadStart(this.asyncprocess));
+                thread.Name = "CANopen worker";
+                thread.Start();
+                if (connectionevent != null) {
+                    connectionevent(this, new ConnectionChangedEventArgs(true));
+                }
+            } else {
+                throw new Exception("Unable to connect to CAN adapter");
+            }
         }
 
         public Dictionary<string, List<string>> ports = new Dictionary<string, List<string>>();
@@ -185,10 +207,14 @@ namespace libCanopenSimple
         /// <returns>true = driver open and ready to use</returns>
         public bool isopen()
         {
+#if false
             if (driver == null)
                 return false;
 
             return driver.isOpen();
+#else
+            return this.pcan.bConnected;
+#endif
         }
 
         /// <summary>
@@ -197,6 +223,7 @@ namespace libCanopenSimple
         /// <param name="p"></param>
         public void SendPacket(canpacket p, bool bridge=false)
         {
+#if false
             DriverInstance.Message msg = p.ToMsg();
 
             driver.cansend(msg);
@@ -205,6 +232,14 @@ namespace libCanopenSimple
             {
                 Driver_rxmessage(msg,bridge);
             }
+#else
+            if(this.pcan.bConnected) {
+                UInt32 can_id = p.cob;
+                byte[] data = new byte[p.len];
+                Array.Copy(p.data, data, p.len);
+                this.pcan.SendStandard(can_id, data);
+            }
+#endif
         }
 
         /// <summary>
@@ -217,22 +252,36 @@ namespace libCanopenSimple
         }
 
 
+        private void Driver_pcan_rxmessage(object sender, can_hw.CanRxMsgArgs e)
+        {
+            canpacket newPacket = new canpacket();
+            newPacket.cob = Convert.ToUInt16(e.msgId & 0x0000FFFF);
+            newPacket.len = e.len;
+            newPacket.data = new byte[e.len];
+            Array.Copy(e.data, newPacket.data, e.len);
+            packetqueue.Enqueue(newPacket);
+        }
+
         /// <summary>
         /// Close the CanOpen CanFestival driver
         /// </summary>
         public void close()
         {
+            this.pcan.CanRxMsgEvent -= this.Driver_pcan_rxmessage;
             threadrun = false;
 
+#if false
             if (driver == null)
                 return;
 
             driver.close();
-
+#else
+            this.pcan.Disconnect();
+#endif
             if (connectionevent != null) connectionevent(this, new ConnectionChangedEventArgs(false));
         }
 
-        #endregion
+#endregion
 
         Dictionary<UInt16, Action<byte[]>> PDOcallbacks = new Dictionary<ushort, Action<byte[]>>();
         public Dictionary<UInt16, SDO> SDOcallbacks = new Dictionary<ushort, SDO>();
@@ -414,7 +463,7 @@ namespace libCanopenSimple
         }
 
 
-        #region SDOHelpers
+#region SDOHelpers
 
         /// <summary>
         /// Write to a node via SDO
@@ -606,9 +655,9 @@ namespace libCanopenSimple
                 sdo_queue.Clear();
         }
 
-        #endregion
+#endregion
 
-        #region NMTHelpers
+#region NMTHelpers
 
         public void NMT_start(byte nodeid = 0)
         {
@@ -697,9 +746,9 @@ namespace libCanopenSimple
             return true;
         }
 
-        #endregion
+#endregion
 
-        #region PDOhelpers
+#region PDOhelpers
 
         public void writePDO(UInt16 cob, byte[] payload)
         {
@@ -713,7 +762,7 @@ namespace libCanopenSimple
             SendPacket(p);
         }
 
-        #endregion
+#endregion
 
     }
 }
