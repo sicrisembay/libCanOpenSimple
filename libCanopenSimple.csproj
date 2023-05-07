@@ -96,7 +96,7 @@
     </PreBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
-    <PostBuildEvent>xcopy /Y "$(SolutionDir)\can_hw\pcan\peak\x64\PCANBasic.dll" "$(TargetDir)"</PostBuildEvent>
+    <PostBuildEvent>xcopy /Y "$(ProjectDir)can_hw\pcan\peak\x64\PCANBasic.dll" "$(TargetDir)"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
