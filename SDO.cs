@@ -76,6 +76,8 @@ namespace libCanopenSimple
         private libCanopenSimple can;
         private bool lasttoggle = false;
         private DateTime timeout;
+        private const int TIMEOUT_DEFAULT_SEC = 5;
+        private int defaultTimeout = TIMEOUT_DEFAULT_SEC; // Seconds
         private ManualResetEvent finishedevent;
         private debuglevel dbglevel;
 
@@ -90,7 +92,7 @@ namespace libCanopenSimple
         /// <param name="dir">Direction of transfer</param>
         /// <param name="completedcallback">Optional, completed callback (or null if not required)</param>
         /// <param name="databuffer">A byte array of data to be transfered to or from if more than 4 bytes</param>
-        public SDO(libCanopenSimple can, byte node, UInt16 index, byte subindex, direction dir, Action<SDO> completedcallback, byte[] databuffer)
+        public SDO(libCanopenSimple can, byte node, UInt16 index, byte subindex, direction dir, Action<SDO> completedcallback, byte[] databuffer, int timeout = TIMEOUT_DEFAULT_SEC)
         {
             this.can = can;
             this.index = index;
@@ -99,6 +101,7 @@ namespace libCanopenSimple
             this.dir = dir;
             this.completedcallback = completedcallback;
             this.databuffer = databuffer;
+            this.defaultTimeout = timeout;
 
             finishedevent = new ManualResetEvent(false);
             state = SDO_STATE.SDO_INIT;
@@ -177,7 +180,7 @@ namespace libCanopenSimple
 
             if (state == SDO_STATE.SDO_INIT)
             {
-                timeout = DateTime.Now + new TimeSpan(0, 0, 5);
+                timeout = DateTime.Now + new TimeSpan(0, 0, this.defaultTimeout);
                 state = SDO_STATE.SDO_SENT;
 
                 if (dir == direction.SDO_READ)
@@ -472,7 +475,7 @@ namespace libCanopenSimple
         private void requestNextSegment(bool toggle)
         {
 
-            timeout = DateTime.Now + new TimeSpan(0, 0, 5);
+            timeout = DateTime.Now + new TimeSpan(0, 0, this.defaultTimeout);
 
             if (dir == direction.SDO_READ)
             {

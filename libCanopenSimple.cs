@@ -19,10 +19,11 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Collections.Concurrent;
 using Peak.Can.Basic;
-using TPCANHandle = System.Byte;
 
 namespace libCanopenSimple
 {
+    using TPCANHandle = System.UInt16;
+
     public enum BUSSPEED
     {
         BUS_10Kbit = 0,
@@ -117,7 +118,7 @@ namespace libCanopenSimple
     public class libCanopenSimple
     {
         private can_hw.pcan_usb pcan;
-
+        private const int SDO_DEFAULT_TIMEOUT = 5;  // timeout in second
         public debuglevel dbglevel = debuglevel.DEBUG_NONE;
        
         DriverInstance driver;
@@ -612,10 +613,10 @@ namespace libCanopenSimple
         /// <param name="udata">byte[] of data (1-8 bytes) to send</param>
         /// <param name="completedcallback">Call back on finished/error event</param>
         /// <returns>SDO class that is used to perform the packet handshake, contains error/status codes</returns>
-        public SDO SDOwrite(byte node, UInt16 index, byte subindex, byte[] data, Action<SDO> completedcallback)
+        public SDO SDOwrite(byte node, UInt16 index, byte subindex, byte[] data, Action<SDO> completedcallback, int timeout = SDO_DEFAULT_TIMEOUT)
         {
 
-            SDO sdo = new SDO(this, node, index, subindex, SDO.direction.SDO_WRITE, completedcallback, data);
+            SDO sdo = new SDO(this, node, index, subindex, SDO.direction.SDO_WRITE, completedcallback, data, timeout: timeout);
             lock(sdo_queue)
                 sdo_queue.Enqueue(sdo);
             return sdo;
@@ -629,9 +630,9 @@ namespace libCanopenSimple
         /// <param name="subindex">Object Dictionary sub index</param>
         /// <param name="completedcallback">Call back on finished/error event</param>
         /// <returns>SDO class that is used to perform the packet handshake, contains returned data and error/status codes</returns>
-        public SDO SDOread(byte node, UInt16 index, byte subindex, Action<SDO> completedcallback)
+        public SDO SDOread(byte node, UInt16 index, byte subindex, Action<SDO> completedcallback, int timeout = SDO_DEFAULT_TIMEOUT)
         {
-            SDO sdo = new SDO(this, node, index, subindex, SDO.direction.SDO_READ, completedcallback, null);
+            SDO sdo = new SDO(this, node, index, subindex, SDO.direction.SDO_READ, completedcallback, null, timeout: timeout);
             lock (sdo_queue)
                 sdo_queue.Enqueue(sdo);
             return sdo;

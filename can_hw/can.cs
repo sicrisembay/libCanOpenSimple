@@ -5,11 +5,12 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
 using Peak.Can.Basic;
-using TPCANHandle = System.Byte;
 using NationalInstruments.EmbeddedNetworks.Interop;
 
 namespace can_hw
 {
+    using TPCANHandle = System.UInt16;
+
     public enum SupportedVendor : byte
     {
         NI_XNET = 0,
