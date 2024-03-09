@@ -64,6 +64,7 @@ namespace libCanopenSimple
         public bool expitided = false;
 
         public int returnlen = 0;
+        public bool bTimedOut { private set; get; }
 
         static List<SDO> activeSDO = new List<SDO>();
 
@@ -169,7 +170,7 @@ namespace libCanopenSimple
             if (state != SDO_STATE.SDO_INIT && DateTime.Now > timeout)
             {
                 state = SDO_STATE.SDO_ERROR;
-
+                this.bTimedOut = true;
                 Console.WriteLine("SDO Timeout Error on {0:x4}/{1:x2} {2:x8}", this.index, this.subindex, expitideddata);
 
                 if (completedcallback != null)
@@ -181,6 +182,7 @@ namespace libCanopenSimple
             if (state == SDO_STATE.SDO_INIT)
             {
                 timeout = DateTime.Now + new TimeSpan(0, 0, this.defaultTimeout);
+                this.bTimedOut = false;
                 state = SDO_STATE.SDO_SENT;
 
                 if (dir == direction.SDO_READ)
