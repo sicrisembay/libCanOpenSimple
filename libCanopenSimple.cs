@@ -238,7 +238,11 @@ namespace libCanopenSimple
                 UInt32 can_id = p.cob;
                 byte[] data = new byte[p.len];
                 Array.Copy(p.data, data, p.len);
-                this.pcan.SendStandard(can_id, data);
+                if(this.pcan.SendStandard(can_id, data)) {
+                    if(sendPacketEvent != null) {
+                        sendPacketEvent(p, DateTime.Now);
+                    }
+                }
             }
 #endif
         }
@@ -290,6 +294,9 @@ namespace libCanopenSimple
 
         public delegate void ConnectionEvent(object sender, EventArgs e);
         public event ConnectionEvent connectionevent;
+
+        public delegate void SendPacketEvent(canpacket p, DateTime dt);
+        public event SendPacketEvent sendPacketEvent;
 
         public delegate void PacketEvent(canpacket p, DateTime dt);
         public event PacketEvent packetevent;
