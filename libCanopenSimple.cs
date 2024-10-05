@@ -259,12 +259,24 @@ namespace libCanopenSimple
 
         private void Driver_pcan_rxmessage(object sender, can_hw.CanRxMsgArgs e)
         {
-            canpacket newPacket = new canpacket();
-            newPacket.cob = Convert.ToUInt16(e.msgId & 0x0000FFFF);
-            newPacket.len = e.len;
-            newPacket.data = new byte[e.len];
-            Array.Copy(e.data, newPacket.data, e.len);
-            packetqueue.Enqueue(newPacket);
+            if (e.msgType == (byte)TPCANMessageType.PCAN_MESSAGE_STANDARD) {
+                canpacket newPacket = new canpacket();
+                newPacket.cob = Convert.ToUInt16(e.msgId & 0x0000FFFF);
+                newPacket.len = e.len;
+                newPacket.data = new byte[e.len];
+                Array.Copy(e.data, newPacket.data, e.len);
+                packetqueue.Enqueue(newPacket);
+            } else {
+                string strMsg = "MsgType: " + ( (TPCANMessageType)e.msgType ).ToString();
+                if((e.msgType == (byte)TPCANMessageType.PCAN_MESSAGE_STATUS) ||
+                   (e.msgType == (byte)TPCANMessageType.PCAN_MESSAGE_ERRFRAME)) {
+                    strMsg += " Data: ";
+                    for(int i = 0; i < e.len; i++) {
+                        strMsg += e.data[i].ToString("X2") + " ";
+                    }
+                }
+                Console.WriteLine(strMsg);
+            }
         }
 
         /// <summary>
