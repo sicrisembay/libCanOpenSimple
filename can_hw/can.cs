@@ -108,7 +108,12 @@ namespace can_hw
                     TPCANTimestamp CANTimeStamp;
                     do
                     {
-                        stsResult = PCANBasic.Read(this.m_PcanHandle, out CANMsg, out CANTimeStamp);
+                        try {
+                            stsResult = PCANBasic.Read(this.m_PcanHandle, out CANMsg, out CANTimeStamp);
+                        } catch (Exception ex) {
+                            Console.WriteLine(ex.Message);
+                            continue;
+                        }
                         if(stsResult == TPCANStatus.PCAN_ERROR_OK)
                         {
                             if(this.CanRxMsgEvent != null)
