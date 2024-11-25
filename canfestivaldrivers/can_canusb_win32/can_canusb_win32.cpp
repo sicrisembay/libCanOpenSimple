@@ -573,7 +573,7 @@ extern "C" void __stdcall canEnumerate2_driver(setStringValuesCB_t callback)
 	{
 
 		gSetStringValuesCB = callback;
-		char** Values = (char**)malloc(names.size());
+		char** Values = (char**)malloc(names.size()* MAX_BUF_SIZE*10);
 
 		int x = 0;
 		for (const auto& name : names)
