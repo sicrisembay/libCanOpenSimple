@@ -17,6 +17,20 @@ namespace can_hw
         PEAK
     }
 
+    public enum BusState: byte {
+        BUS_OK = 0,             // ERROR_ACTIVE, OK
+                                //   0 <= REC < 97
+                                //   0 <= TEC < 97
+        BUS_WARNING,            // ERROR_ACTIVE, WARNING
+                                //   97 <= REC < 128
+                                //   97 <= TEC < 128
+        BUS_ERROR_PASSIVE,      // ERROR_PASSIVE
+                                //   REC >= 128
+                                //   128 <= TEC <= 255
+        BUS_OFF                 // BUS OFF
+                                //   TEC > 255
+    }
+
     public class CanRxMsgArgs : EventArgs
     {
         public readonly UInt32 msgId;
@@ -38,7 +52,7 @@ namespace can_hw
         }
     }
 
-    public delegate void CanRxMsgHandler(object sender, CanRxMsgArgs e);
+    public delegate void CanMsgHandler(object sender, CanRxMsgArgs e);
     public delegate void CanTxHook(object sender, CanRxMsgArgs e);
 
     public class pcan_usb
@@ -47,10 +61,21 @@ namespace can_hw
         private TPCANHandle m_PcanHandle;
         private TPCANBaudrate m_Baudrate;
         public bool bConnected { private set; get; }
-        public event CanRxMsgHandler CanRxMsgEvent;
+        public event CanMsgHandler CanRxMsgEvent;
         public event CanTxHook CanTxHookEvent;
         private System.Threading.AutoResetEvent m_ReceiveEvent;
         private System.Threading.Thread m_ReadThread;
+        public BusState busState { private set; get; }
+        BusState prevBusState;
+        public byte REC { private set; get; }
+        public byte max_REC { private set; get; }
+        public byte TEC { private set; get; }
+        public byte max_TEC { private set; get; }
+        public UInt32 total_tx_cnt { private set; get; }
+        public UInt32 total_rx_cnt { private set; get; }
+        public UInt16 warning_cnt { private set; get; }
+        public UInt16 error_passive_cnt { private set; get; }
+        public UInt16 bus_off_cnt { private set; get; }
         #endregion
 
         #region methods
@@ -86,14 +111,37 @@ namespace can_hw
             UInt32 iBuffer;
             TPCANStatus stsResult;
 
+            this.ClearStatistics();
+
             iBuffer = Convert.ToUInt32(m_ReceiveEvent.SafeWaitHandle.DangerousGetHandle().ToInt32());
             // Sets the handle of the Receive-Event.
-            //
             stsResult = PCANBasic.SetValue(m_PcanHandle, TPCANParameter.PCAN_RECEIVE_EVENT, ref iBuffer, sizeof(UInt32));
+            if (stsResult != TPCANStatus.PCAN_ERROR_OK) {
+                Console.WriteLine("pcan::CANReadThreadFunc Error: Failed to set PCAN_RECEIVE_EVENT " + stsResult);
+                return;
+            }
 
-            if (stsResult != TPCANStatus.PCAN_ERROR_OK)
-            {
-                Console.WriteLine("pcan::CANReadThreadFunc Error: " + stsResult);
+            // Set the handle to allow error frames
+            iBuffer = PCANBasic.PCAN_PARAMETER_ON;
+            stsResult = PCANBasic.SetValue(m_PcanHandle, TPCANParameter.PCAN_ALLOW_ERROR_FRAMES, ref iBuffer, sizeof(UInt32));
+            if (stsResult != TPCANStatus.PCAN_ERROR_OK) {
+                Console.WriteLine("pcan::CANReadThreadFunc Error: Failed to set PCAN_ALLOW_ERROR_FRAMES " + stsResult);
+                return;
+            }
+
+            // Set PCAN_RECEIVE_STATUS
+            iBuffer = PCANBasic.PCAN_PARAMETER_ON;
+            stsResult = PCANBasic.SetValue(m_PcanHandle, TPCANParameter.PCAN_RECEIVE_STATUS, ref iBuffer, sizeof(UInt32));
+            if (stsResult != TPCANStatus.PCAN_ERROR_OK) {
+                Console.WriteLine("pcan::CANReadThreadFunc Error: Failed to set PCAN_RECEIVE_STATUS " + stsResult);
+                return;
+            }
+
+            // Set the handle to allow status frames
+            iBuffer = PCANBasic.PCAN_PARAMETER_ON;
+            stsResult = PCANBasic.SetValue(m_PcanHandle, TPCANParameter.PCAN_ALLOW_STATUS_FRAMES, ref iBuffer, sizeof(UInt32));
+            if (stsResult != TPCANStatus.PCAN_ERROR_OK) {
+                Console.WriteLine("pcan::CANReadThreadFunc Error: Failed to set PCAN_ALLOW_STATUS_FRAMES " + stsResult);
                 return;
             }
 
@@ -114,22 +162,123 @@ namespace can_hw
                             Console.WriteLine(ex.Message);
                             continue;
                         }
-                        if(stsResult == TPCANStatus.PCAN_ERROR_OK)
-                        {
-                            if(this.CanRxMsgEvent != null)
-                            {
-                                UInt32 msgId = CANMsg.ID;
-                                byte msgType = (byte)CANMsg.MSGTYPE;
-                                byte[] data = null;
-                                if (CANMsg.LEN > 0) {
-                                    data = new byte[CANMsg.LEN];
-                                    Array.Copy(CANMsg.DATA, 0, data, 0, data.Length);
+                        if(stsResult == TPCANStatus.PCAN_ERROR_OK) {
+                            if (CANMsg.MSGTYPE == TPCANMessageType.PCAN_MESSAGE_STANDARD) {
+                                total_rx_cnt++;
+                                if (( this.CanRxMsgEvent != null )) {
+                                    UInt32 msgId = CANMsg.ID;
+                                    byte msgType = (byte)CANMsg.MSGTYPE;
+                                    byte[] data = null;
+                                    if (CANMsg.LEN > 0) {
+                                        data = new byte[CANMsg.LEN];
+                                        Array.Copy(CANMsg.DATA, 0, data, 0, data.Length);
 
-                                    UInt64 timestamp_us = (UInt64)( CANTimeStamp.micros ) +
-                                                    ( (UInt64)( CANTimeStamp.millis ) * 1000 ) +
-                                                    ( (UInt64)( CANTimeStamp.millis_overflow ) * ( 2 ^ 32 ) );
+                                        UInt64 timestamp_us = (UInt64)( CANTimeStamp.micros ) +
+                                                        ( (UInt64)( CANTimeStamp.millis ) * 1000 ) +
+                                                        ( (UInt64)( CANTimeStamp.millis_overflow ) * ( 2 ^ 32 ) );
 
-                                    this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp_us));
+                                        this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp_us));
+                                    }
+                                }
+                            } 
+                            else if (CANMsg.MSGTYPE == TPCANMessageType.PCAN_MESSAGE_ERRFRAME) {
+                                REC = CANMsg.DATA[2];
+                                if(REC > max_REC) {
+                                    max_REC = REC;
+                                }
+                                TEC = CANMsg.DATA[3];
+                                if(TEC > max_TEC) {
+                                    max_TEC = TEC;
+                                }
+                                Console.WriteLine("Error TEC: " + TEC + ", REC: " + REC);
+                                prevBusState = busState;
+                                switch(busState) {
+                                    case BusState.BUS_OK: {
+                                        if (( TEC > 255 )) {
+                                            busState = BusState.BUS_OFF;
+                                            warning_cnt++;
+                                            error_passive_cnt++;
+                                            bus_off_cnt++;
+                                        } else if (( TEC >= 128 ) || ( REC >= 128 )) {
+                                            busState = BusState.BUS_ERROR_PASSIVE;
+                                            warning_cnt++;
+                                            error_passive_cnt++;
+                                        } else if (( TEC >= 97 ) || ( REC >= 97 )) {
+                                            busState = BusState.BUS_WARNING;
+                                            warning_cnt++;
+                                        }
+                                        break;
+                                    }
+                                    case BusState.BUS_WARNING: {
+                                        if (( TEC > 255 )) {
+                                            busState = BusState.BUS_OFF;
+                                            error_passive_cnt++;
+                                            bus_off_cnt++;
+                                        } else if (( TEC >= 128 ) || ( REC >= 128 )) {
+                                            busState = BusState.BUS_ERROR_PASSIVE;
+                                            error_passive_cnt++;
+                                        } else if (( TEC < 97 ) && ( REC < 97 )) {
+                                            busState = BusState.BUS_OK;
+                                        }
+                                        break;
+                                    }
+                                    case BusState.BUS_ERROR_PASSIVE: {
+                                        if (( TEC > 255 )) {
+                                            busState = BusState.BUS_OFF;
+                                            bus_off_cnt++;
+                                        } else if (( TEC < 97 ) && ( REC < 97 )) {
+                                            busState = BusState.BUS_OK;
+                                        } else if (( TEC < 128 ) && ( REC < 128 )) {
+                                            busState = BusState.BUS_WARNING;
+                                        }
+                                        break;
+                                    }
+                                    case BusState.BUS_OFF: {
+                                        if (( TEC < 97 ) && ( REC < 97 )) {
+                                            busState = BusState.BUS_OK;
+                                        }
+                                        break;
+                                    }
+                                    default: {
+                                        Console.WriteLine("Unknown Bus State");
+                                        break;
+                                    }
+                                }
+                                if(prevBusState != busState) {
+                                    Console.WriteLine("Bus State Changed: " + prevBusState.ToString() +
+                                        " -> " + busState.ToString());
+                                }
+                            } 
+                        } 
+                        else if((stsResult & TPCANStatus.PCAN_ERROR_ANYBUSERR) != 0) {
+                            if ((stsResult & TPCANStatus.PCAN_ERROR_BUSOFF) != 0) {
+                                prevBusState = busState;
+                                switch(prevBusState) {
+                                    case BusState.BUS_OK: {
+                                        busState = BusState.BUS_OFF;
+                                        bus_off_cnt++;
+                                        error_passive_cnt++;
+                                        warning_cnt++;
+                                        break;
+                                    }
+                                    case BusState.BUS_WARNING: {
+                                        busState = BusState.BUS_OFF;
+                                        bus_off_cnt++;
+                                        error_passive_cnt++;
+                                        break;
+                                    }
+                                    case BusState.BUS_ERROR_PASSIVE: {
+                                        busState = BusState.BUS_OFF;
+                                        bus_off_cnt++;
+                                        break;
+                                    }
+                                    default: {
+                                        Console.WriteLine("Unknown Bus State");
+                                        break;
+                                    }
+                                }
+                                if (prevBusState != busState) {
+                                    Console.WriteLine("Status: Bus off");
                                 }
                             }
                         }
@@ -215,6 +364,7 @@ namespace can_hw
                 stsResult = PCANBasic.Write(this.m_PcanHandle, ref CANMsg);
                 if (stsResult == TPCANStatus.PCAN_ERROR_OK)
                 {
+                    total_tx_cnt++;
                     return true;
                 }
                 else
@@ -227,6 +377,20 @@ namespace can_hw
                 Console.WriteLine("pcan::SendStandard error: Not Connected");
                 return false;
             }
+        }
+
+        public void ClearStatistics()
+        {
+            busState = BusState.BUS_OK;
+            REC = 0;
+            max_REC = 0;
+            TEC = 0;
+            max_TEC = 0;
+            total_rx_cnt = 0;
+            total_tx_cnt = 0;
+            warning_cnt = 0;
+            error_passive_cnt = 0;
+            bus_off_cnt = 0;
         }
         #endregion
     }
@@ -247,7 +411,7 @@ namespace can_hw
         private niXNET xnetSessionRx;
         private UInt32 baudRate;
         private bool bConnected;
-        public event CanRxMsgHandler CanRxMsgEvent;
+        public event CanMsgHandler CanRxMsgEvent;
         public event CanTxHook CanTxHookEvent;
         private System.Threading.Thread m_ReadThread;
         #endregion

@@ -782,7 +782,49 @@ namespace libCanopenSimple
             SendPacket(p);
         }
 
-#endregion
+        #endregion
 
+        #region CAN Statistics
+        public can_hw.BusState CanStat_get_state()
+        {
+            return this.pcan.busState;
+        }
+        public byte CanStat_get_REC()
+        {
+            return this.pcan.REC;
+        }
+        public byte CanStat_get_TEC()
+        {
+            return this.pcan.TEC;
+        }
+        public byte CanStat_get_max_REC()
+        {
+            return this.pcan.max_REC;
+        }
+        public byte CanStat_get_max_TEC()
+        {
+            return this.pcan.max_TEC;
+        }
+        public UInt32 CanStat_get_total_tx_cnt()
+        {
+            return this.pcan.total_tx_cnt;
+        }
+        public UInt32 CanStat_get_total_rx_cnt()
+        {
+            return this.pcan.total_rx_cnt;
+        }
+        public UInt16 CanStat_get_warning_cnt()
+        {
+            return this.pcan.warning_cnt;
+        }
+        public UInt16 CanStat_get_error_passive_cnt()
+        {
+            return this.pcan.error_passive_cnt;
+        }
+        public UInt16 CanStat_get_busoff_cnt()
+        {
+            return this.pcan.bus_off_cnt;
+        }
+        #endregion
     }
 }
