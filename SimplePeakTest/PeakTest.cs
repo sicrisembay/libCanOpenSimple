@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using libCanopenSimple;
 using Peak.Can.Basic;
-using TPCANHandle = System.Byte;
+using TPCANHandle = System.UInt16;
 
 namespace SimplePeakTest
 {
