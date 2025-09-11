@@ -58,8 +58,10 @@ namespace CustomDeviceTest
                 try {
                     this.device.Connect(cboDongleSN.Text);
                     this.device.EventDataReceive += DataReceive;
+                    this.device.EventCanReceive += CanReceive;
                     btnConnect.Text = "Disconnect";
                     gbUsbComm.Enabled = false;
+                    rtb_log.Clear();
                     Thread.Sleep(2000); /* Add delay to give enough time for the dongle to be in CONNECTED state */
                 } catch (Exception ex) {
                     MessageBox.Show(ex.Message);
@@ -110,6 +112,28 @@ namespace CustomDeviceTest
         void DataReceive(object sender, can_hw.custom.Events.DataReceiveEventArgs e)
         {
             Console.WriteLine("DataReceive(): " + BitConverter.ToString(e.buf));
+        }
+
+        void CanReceive(object sender, can_hw.custom.Events.CanReceiveEventArgs e)
+        {
+            string strType = "UNKNOWN";
+            if(e.frame_type == can_hw.custom.Packet.frame_type_t.FRAME_TYPE_CAN_CC_RX) {
+                strType = "CAN-CC";
+            } else if(e.frame_type == can_hw.custom.Packet.frame_type_t.FRAME_TYPE_CAN_FD_RX) {
+                strType = "CAN-FD";
+            }
+            string strLog = "(" + (e.timestamp_10us * 0.00001 ).ToString("F3") + ")   CAN" + e.channel + ", type: " + strType + ", MsgId: 0x" + e.msgId.ToString("X4") + ", dlc: " + e.dlc +
+                            ", payload: " + BitConverter.ToString(e.buf);
+            this.rtb_log.BeginInvoke(new Action(() => {
+                rtb_log.Text += strLog + Environment.NewLine;
+                rtb_log.Select(rtb_log.Text.Length, 0);
+                rtb_log.ScrollToCaret();
+            }));
+        }
+
+        private void rtb_log_DoubleClick(object sender, EventArgs e)
+        {
+            rtb_log.Clear();
         }
     }
 }

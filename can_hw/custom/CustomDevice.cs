@@ -24,6 +24,27 @@ namespace can_hw.custom
             }
         }
 
+        public delegate void CanReceiveEventHandler(object sender, CanReceiveEventArgs e);
+        public class CanReceiveEventArgs : EventArgs
+        {
+            public readonly UInt32 timestamp_10us;
+            public readonly Packet.frame_type_t frame_type;
+            public readonly byte channel;
+            public readonly UInt32 msgId;
+            public readonly byte dlc;
+            public readonly byte[] buf;
+            public CanReceiveEventArgs(UInt32 timestamp_10us, Packet.frame_type_t frame_type, byte channel, UInt32 msgId, byte dlc, byte[] payload)
+            {
+                this.timestamp_10us = timestamp_10us;
+                this.frame_type = frame_type;
+                this.channel = channel;
+                this.msgId = msgId;
+                this.dlc = dlc;
+                this.buf = new byte[payload.Length];
+                payload.CopyTo(this.buf, 0);
+            }
+        }
+
         public delegate void DeviceConnectEventHandler(object sender, DeviceConnectEventArgs e);
         public class DeviceConnectEventArgs : EventArgs
         {
@@ -58,13 +79,13 @@ namespace can_hw.custom
         private bool interfaceClaimed = false;
         private bool device_connected;
         private UsbDevice MyUsbDevice;
-        private UsbDeviceFinder MyUsbFinder;
         private UsbEndpointReader epReader;
         private UsbEndpointWriter epWriter;
         private ErrorCode ec = ErrorCode.None;
         private Thread USB_receive;
         private byte[] readBuffer;
-        private int nBytesReceived;
+        private int readBuffer_wrIdx;
+        private int readBuffer_rdIdx;
         private Thread USB_connect;
         private byte[] writeBuffer;
         private int vid;
@@ -73,6 +94,7 @@ namespace can_hw.custom
         public deviceState state { get; private set; }
         public List<string> DevSerialList { get; private set; }
         public event Events.DataReceiveEventHandler EventDataReceive;
+        public event Events.CanReceiveEventHandler EventCanReceive;
         public event Events.DeviceConnectEventHandler EventDeviceConnect;
 
         #endregion // Members
@@ -87,6 +109,8 @@ namespace can_hw.custom
             this.pid = pid;
             this.MyUsbDevice = null;
             this.readBuffer = new byte[this.bufferSize];
+            this.readBuffer_rdIdx = 0;
+            this.readBuffer_wrIdx = 0;
             this.writeBuffer = new byte[this.bufferSize];
             this.state = deviceState.STOPPED;
             this.ListDevice();
@@ -99,6 +123,8 @@ namespace can_hw.custom
                     this.sn = serialNumber;
                     USB_connect = new Thread(USB_connection);
                     this.running = true;
+                    this.readBuffer_rdIdx = 0;
+                    this.readBuffer_wrIdx = 0;
                     USB_connect.Start();
                 } catch (Exception ex) {
                     Console.WriteLine(ex.Message);
@@ -240,13 +266,75 @@ namespace can_hw.custom
             try {
                 while (this.device_connected && ( ( this.ec == ErrorCode.None ) || ( this.ec == ErrorCode.IoTimedOut ) )) {
                     int bytesRead = 0;
-                    this.ec = this.epReader.Transfer(this.readBuffer, 0, this.bufferSize, 500, out bytesRead);
-                    this.nBytesReceived = bytesRead;
+                    byte[] usbReadBuf = new byte[512];
+                    this.ec = this.epReader.Transfer(usbReadBuf, 0, usbReadBuf.Length, 500, out bytesRead);
+                    if (bytesRead == 0) {
+                        continue;
+                    }
                     lock (USB_receive) {
+                        int availableBytes = 0;
+                        UInt16 length = 0;
+                        int idx = 0;
+                        int sum = 0;
+
+                        for (int i = 0; i < bytesRead; i++) {
+                            this.readBuffer[readBuffer_wrIdx] = usbReadBuf[i];
+                            readBuffer_wrIdx = ( readBuffer_wrIdx + 1 ) % this.readBuffer.Length;
+                        }
+
                         if (this.running && ( this.ec == ErrorCode.None )) {
                             if (this.EventDataReceive != null) {
-                                this.EventDataReceive(this, new Events.DataReceiveEventArgs(this.readBuffer, bytesRead));
+                                this.EventDataReceive(this, new Events.DataReceiveEventArgs(usbReadBuf, bytesRead));
                             }
+                        }
+
+                        /* Parse */
+                        while(readBuffer_rdIdx != readBuffer_wrIdx) {
+                            if(readBuffer[readBuffer_rdIdx] != Packet.SOF) {
+                                /* Not SOF, skip byte */
+                                readBuffer_rdIdx = ( readBuffer_rdIdx + 1 ) % readBuffer.Length;
+                                continue;
+                            }
+
+                            /* Get available bytes in buffer */
+                            if(readBuffer_wrIdx >= readBuffer_rdIdx) {
+                                availableBytes = readBuffer_wrIdx - readBuffer_rdIdx;
+                            } else {
+                                availableBytes = readBuffer.Length - ( readBuffer_rdIdx - readBuffer_wrIdx );
+                            }
+                            if(availableBytes < Packet.MIN_PACKET_SIZE) {
+                                /* Less than minimum frame size */
+                                break;
+                            }
+
+                            /* Get packet length */
+                            length = Convert.ToUInt16( readBuffer[(readBuffer_rdIdx + 1) % readBuffer.Length] +
+                                                (readBuffer[(readBuffer_rdIdx + 2) % readBuffer.Length] << 8));
+                            if(availableBytes < length) {
+                                /* entire packet is not in the receive buffer */
+                                break;
+                            }
+                            /* Compute checksum */
+                            sum = 0;
+                            for(int i = 0; i < length; i++) {
+                                sum = sum + readBuffer[(readBuffer_rdIdx + i) % readBuffer.Length];
+                            }
+                            if((sum & 0x00FF) != 0) {
+                                /*
+                                 * Invalid checksum
+                                 * It is probably not really the start of a frame
+                                 */
+                                readBuffer_rdIdx = ( readBuffer_rdIdx + 1 ) % readBuffer.Length;
+                                continue;
+                            }
+                            /* Valid Frame */
+                            byte[] validFrameBuf = new byte[length];
+                            for(int i = 0; i < length; i++) {
+                                validFrameBuf[i] = readBuffer[( readBuffer_rdIdx + i ) % readBuffer.Length];
+                            }
+                            processValidFrame(validFrameBuf);
+                            /* Done */
+                            readBuffer_rdIdx = ( readBuffer_rdIdx + length ) % readBuffer.Length;
                         }
                     }
                 }
@@ -261,6 +349,19 @@ namespace can_hw.custom
                     this.Close();
                     this.ec = ErrorCode.None;
                 }
+            }
+        }
+        private void processValidFrame(byte[] buf)
+        {
+            UInt32 timestamp_10us = BitConverter.ToUInt32(buf, Packet.OFFSET_TIMESTAMP);
+            Packet.frame_type_t type = (Packet.frame_type_t)(buf[Packet.OFFSET_TYPE] & 0x1F);
+            byte channel = (byte)( buf[Packet.OFFSET_TYPE] >> 5 );
+            UInt32 msgId = BitConverter.ToUInt32(buf, Packet.OFFSET_MSGID);
+            byte dlc = buf[Packet.OFFSET_DLC];
+            byte[] payload = new byte[dlc];
+            Array.Copy(buf, Packet.OFFSET_PAYLOAD, payload, 0, dlc);
+            if(this.EventCanReceive != null) {
+                this.EventCanReceive(this, new Events.CanReceiveEventArgs(timestamp_10us, type, channel, msgId, dlc, payload));
             }
         }
         private void Close()
@@ -286,20 +387,27 @@ namespace can_hw.custom
     {
         // SOF - LEN - SEQ - TIMESTAMP - TYPE - MSGID - DLC - PAYLOAD - CHECKSUM
         // 1B    2B    2B    4B          1B     4B      1B    0-64B     1B
-        private const byte PKT_OVERHEAD = 16;
-        private const byte SOF = 0xFF;
-        private UInt16 length;
-        private UInt16 seq;
-        private UInt16 msgId;
-        private byte dlc;
+        public const byte MIN_PACKET_SIZE = 16;
+        public const byte SOF = 0xFF;
+        public const int OFFSET_TIMESTAMP = 5;
+        public const int OFFSET_TYPE = 9;
+        public const int OFFSET_MSGID = 10;
+        public const int OFFSET_DLC = 14;
+        public const int OFFSET_PAYLOAD = 15;
         private byte[] frame;
-        private byte checksum;
+        public enum frame_type_t
+        {
+            FRAME_TYPE_CAN_CC_RX = 0,
+            FRAME_TYPE_CAN_CC_TX,
+            FRAME_TYPE_CAN_FD_RX,
+            FRAME_TYPE_CAN_FD_TX
+        };
 
         public Packet(deviceChannel ch, UInt16 seq, UInt16 msgId, bool bFd, byte[] payload)
         {
             DateTime timestamp = DateTime.Now;
-            this.frame = new byte[PKT_OVERHEAD + payload.Length];
-            this.frame[0] = 0xFF;
+            this.frame = new byte[MIN_PACKET_SIZE + payload.Length];
+            this.frame[0] = SOF;
             this.frame[1] = (byte)( frame.Length & 0x00FF );
             this.frame[2] = (byte)( ( frame.Length >> 8 ) & 0x00FF );
             this.frame[3] = (byte)( seq & 0x00FF );
@@ -307,9 +415,9 @@ namespace can_hw.custom
             UInt32 timestamp_ms = Convert.ToUInt32(( ( ( timestamp.Hour * 60.0 ) + timestamp.Minute ) * 60.0 ) + timestamp.Second + ( timestamp.Millisecond / 1000.0 ));
             BitConverter.GetBytes(timestamp_ms).CopyTo(this.frame, 5);
             if(bFd) {
-                this.frame[9] = (byte)( 0x3 + ( (byte)ch << 5 ) );
+                this.frame[9] = (byte)( (byte)(frame_type_t.FRAME_TYPE_CAN_FD_TX) + ( (byte)ch << 5 ) );
             } else {
-                this.frame[9] = (byte)( 0x1 + ( (byte)ch << 5 ) );
+                this.frame[9] = (byte)( (byte)(frame_type_t.FRAME_TYPE_CAN_CC_TX) + ( (byte)ch << 5 ) );
             }
             BitConverter.GetBytes(Convert.ToUInt32(msgId)).CopyTo(this.frame, 10);
             this.frame[14] = (byte)( payload.Length );

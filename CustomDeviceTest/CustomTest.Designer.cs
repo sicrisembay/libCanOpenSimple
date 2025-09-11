@@ -35,6 +35,7 @@ namespace CustomDeviceTest
             this.btnConnect = new System.Windows.Forms.Button();
             this.btnSendTest = new System.Windows.Forms.Button();
             this.btnCanFdSend = new System.Windows.Forms.Button();
+            this.rtb_log = new System.Windows.Forms.RichTextBox();
             this.gbUsbComm.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -43,7 +44,7 @@ namespace CustomDeviceTest
             this.gbUsbComm.Controls.Add(this.lblSerialNumber);
             this.gbUsbComm.Controls.Add(this.btnRefresh);
             this.gbUsbComm.Controls.Add(this.cboDongleSN);
-            this.gbUsbComm.Location = new System.Drawing.Point(34, 29);
+            this.gbUsbComm.Location = new System.Drawing.Point(22, 18);
             this.gbUsbComm.Name = "gbUsbComm";
             this.gbUsbComm.Size = new System.Drawing.Size(285, 66);
             this.gbUsbComm.TabIndex = 7;
@@ -79,7 +80,7 @@ namespace CustomDeviceTest
             // 
             // btnConnect
             // 
-            this.btnConnect.Location = new System.Drawing.Point(334, 46);
+            this.btnConnect.Location = new System.Drawing.Point(313, 36);
             this.btnConnect.Name = "btnConnect";
             this.btnConnect.Size = new System.Drawing.Size(74, 38);
             this.btnConnect.TabIndex = 8;
@@ -89,9 +90,9 @@ namespace CustomDeviceTest
             // 
             // btnSendTest
             // 
-            this.btnSendTest.Location = new System.Drawing.Point(79, 251);
+            this.btnSendTest.Location = new System.Drawing.Point(470, 34);
             this.btnSendTest.Name = "btnSendTest";
-            this.btnSendTest.Size = new System.Drawing.Size(126, 41);
+            this.btnSendTest.Size = new System.Drawing.Size(121, 41);
             this.btnSendTest.TabIndex = 9;
             this.btnSendTest.Text = "Test CAN-CC Send";
             this.btnSendTest.UseVisualStyleBackColor = true;
@@ -99,7 +100,7 @@ namespace CustomDeviceTest
             // 
             // btnCanFdSend
             // 
-            this.btnCanFdSend.Location = new System.Drawing.Point(238, 251);
+            this.btnCanFdSend.Location = new System.Drawing.Point(597, 33);
             this.btnCanFdSend.Name = "btnCanFdSend";
             this.btnCanFdSend.Size = new System.Drawing.Size(121, 41);
             this.btnCanFdSend.TabIndex = 10;
@@ -107,17 +108,31 @@ namespace CustomDeviceTest
             this.btnCanFdSend.UseVisualStyleBackColor = true;
             this.btnCanFdSend.Click += new System.EventHandler(this.btnCanFdSend_Click);
             // 
+            // rtb_log
+            // 
+            this.rtb_log.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.rtb_log.Location = new System.Drawing.Point(22, 99);
+            this.rtb_log.Name = "rtb_log";
+            this.rtb_log.Size = new System.Drawing.Size(758, 339);
+            this.rtb_log.TabIndex = 11;
+            this.rtb_log.Text = "";
+            this.rtb_log.WordWrap = false;
+            this.rtb_log.DoubleClick += new System.EventHandler(this.rtb_log_DoubleClick);
+            // 
             // CustomTest
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(792, 450);
+            this.Controls.Add(this.rtb_log);
             this.Controls.Add(this.btnCanFdSend);
             this.Controls.Add(this.btnSendTest);
             this.Controls.Add(this.btnConnect);
             this.Controls.Add(this.gbUsbComm);
             this.Name = "CustomTest";
-            this.Text = "Form1";
+            this.Text = "Custom CAN-CC/FD Adapter Test";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.CustomTest_FormClosing);
             this.gbUsbComm.ResumeLayout(false);
             this.gbUsbComm.PerformLayout();
@@ -134,6 +149,7 @@ namespace CustomDeviceTest
         private System.Windows.Forms.Button btnConnect;
         private System.Windows.Forms.Button btnSendTest;
         private System.Windows.Forms.Button btnCanFdSend;
+        private System.Windows.Forms.RichTextBox rtb_log;
     }
 }
 
