@@ -52,6 +52,7 @@ namespace libCanopenSimple
         public UInt16 cob;
         public byte len;
         public byte[] data;
+        public UInt64 timestamp_us;
         public bool bridge = false;
 
         public canpacket()
@@ -120,6 +121,7 @@ namespace libCanopenSimple
         private can_hw.pcan_usb pcan;
         private const int SDO_DEFAULT_TIMEOUT = 5;  // timeout in second
         public debuglevel dbglevel = debuglevel.DEBUG_NONE;
+        private DateTime base_date_time;
        
         DriverInstance driver;
 
@@ -140,6 +142,7 @@ namespace libCanopenSimple
                 nmtstate[x] = nmt;
             }
 
+            this.base_date_time = DateTime.Now;
             this.pcan = new can_hw.pcan_usb();
         }
 
@@ -264,6 +267,7 @@ namespace libCanopenSimple
                 newPacket.cob = Convert.ToUInt16(e.msgId & 0x0000FFFF);
                 newPacket.len = e.len;
                 newPacket.data = new byte[e.len];
+                newPacket.timestamp_us = e.timestamp;
                 Array.Copy(e.data, newPacket.data, e.len);
                 packetqueue.Enqueue(newPacket);
             } else {
@@ -401,66 +405,90 @@ namespace libCanopenSimple
                                     SDOcallbacks.Remove(cp.cob);
                                 }
                             }
-                            if (sdoevent != null)
-                                sdoevent(cp, DateTime.Now);
+                            if (sdoevent != null) {
+                                DateTime date_time = base_date_time;
+                                long ticks = (long)cp.timestamp_us * 10;
+                                sdoevent(cp, date_time.AddTicks(ticks));
+                            }
                         }
                     }
 
                     if (cp.cob >= 0x600 && cp.cob < 0x680)
                     {
-                        if (sdoevent != null)
-                            sdoevent(cp,DateTime.Now);
+                        if (sdoevent != null) {
+                            DateTime date_time = base_date_time;
+                            long ticks = (long)cp.timestamp_us * 10;
+                            sdoevent(cp, date_time.AddTicks(ticks));
+                        }
                     }
 
                     //NMT
                     if (cp.cob > 0x700 && cp.cob <= 0x77f)
                     {
+                        DateTime date_time = base_date_time;
+                        long ticks = (long)cp.timestamp_us * 10;
                         byte node = (byte)(cp.cob & 0x07F);
 
                         nmtstate[node].changestate((NMTState.e_NMTState)cp.data[0]);
-                        nmtstate[node].lastping = DateTime.Now;
+                        nmtstate[node].lastping = date_time.AddTicks(ticks);
 
                         if (nmtecevent != null)
-                            nmtecevent(cp, DateTime.Now);
+                            nmtecevent(cp, date_time.AddTicks(ticks));
                     }
 
                     if (cp.cob == 000)
                     {
-
-                        if (nmtevent != null)
-                            nmtevent(cp, DateTime.Now);
+                        if (nmtevent != null) {
+                            DateTime date_time = base_date_time;
+                            long ticks = (long)cp.timestamp_us * 10;
+                            nmtevent(cp, date_time.AddTicks(ticks));
+                        }
                     }
                     if (cp.cob == 0x80)
                     {
-                        if (syncevent != null)
-                            syncevent(cp, DateTime.Now);
+                        if (syncevent != null) {
+                            DateTime date_time = base_date_time;
+                            long ticks = (long)cp.timestamp_us * 10;
+                            syncevent(cp, date_time.AddTicks(ticks));
+                        }
                     }
 
                     if (cp.cob > 0x080 && cp.cob <= 0xFF)
                     {
                         if (emcyevent != null)
                         {
-                            emcyevent(cp, DateTime.Now);
+                            DateTime date_time = base_date_time;
+                            long ticks = (long)cp.timestamp_us * 10;
+                            emcyevent(cp, date_time.AddTicks(ticks));
                         }
                     }
 
                     if (cp.cob == 0x100)
                     {
-                        if (timeevent != null)
-                            timeevent(cp, DateTime.Now);
+                        if (timeevent != null) {
+                            DateTime date_time = base_date_time;
+                            long ticks = (long)cp.timestamp_us * 10;
+                            timeevent(cp, date_time.AddTicks(ticks));
+                        }
                     }
 
                     if (cp.cob > 0x7E4 && cp.cob <= 0x7E5)
                     {
-                        if (lssevent != null)
-                            lssevent(cp, DateTime.Now);
+                        if (lssevent != null) {
+                            DateTime date_time = base_date_time;
+                            long ticks = (long)cp.timestamp_us * 10;
+                            lssevent(cp, date_time.AddTicks(ticks));
+                        }
                     }
                 }
 
                 if (pdos.Count > 0)
                 {
-                    if (pdoevent != null)
-                        pdoevent(pdos.ToArray(),DateTime.Now);
+                    if (pdoevent != null) {
+                        DateTime date_time = base_date_time;
+                        long ticks = (long)cp.timestamp_us * 10;
+                        pdoevent(pdos.ToArray(), date_time.AddTicks(ticks));
+                    }
                 }
 
                 SDO.kick_SDO();
