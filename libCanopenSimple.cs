@@ -179,6 +179,7 @@ namespace libCanopenSimple
             if (this.pcan.Connect(pcanHandle, baudrate)) {
                 this.pcan.CanRxMsgEvent += this.Driver_pcan_rxmessage;
                 this.threadrun = true;
+                this.base_date_time = DateTime.Now;
                 Thread thread = new Thread(new ThreadStart(this.asyncprocess));
                 thread.Name = "CANopen worker";
                 thread.Start();
@@ -373,11 +374,13 @@ namespace libCanopenSimple
 
                 while (packetqueue.TryDequeue(out cp))
                 {
+                    long ticks = (long)cp.timestamp_us * 10;    // In DateTime class, 1 tick == 100ns
+                    DateTime dt = base_date_time.AddTicks(ticks);
 
                     if (cp.bridge == false)
                     {
                         if(packetevent!=null)
-                            packetevent(cp, DateTime.Now);
+                            packetevent(cp, dt);
                     }
 
                     //PDO 0x180 -- 0x57F
@@ -406,9 +409,7 @@ namespace libCanopenSimple
                                 }
                             }
                             if (sdoevent != null) {
-                                DateTime date_time = base_date_time;
-                                long ticks = (long)cp.timestamp_us * 10;
-                                sdoevent(cp, date_time.AddTicks(ticks));
+                                sdoevent(cp, dt);
                             }
                         }
                     }
@@ -416,40 +417,32 @@ namespace libCanopenSimple
                     if (cp.cob >= 0x600 && cp.cob < 0x680)
                     {
                         if (sdoevent != null) {
-                            DateTime date_time = base_date_time;
-                            long ticks = (long)cp.timestamp_us * 10;
-                            sdoevent(cp, date_time.AddTicks(ticks));
+                            sdoevent(cp, dt);
                         }
                     }
 
                     //NMT
                     if (cp.cob > 0x700 && cp.cob <= 0x77f)
                     {
-                        DateTime date_time = base_date_time;
-                        long ticks = (long)cp.timestamp_us * 10;
                         byte node = (byte)(cp.cob & 0x07F);
 
                         nmtstate[node].changestate((NMTState.e_NMTState)cp.data[0]);
-                        nmtstate[node].lastping = date_time.AddTicks(ticks);
+                        nmtstate[node].lastping = dt;
 
                         if (nmtecevent != null)
-                            nmtecevent(cp, date_time.AddTicks(ticks));
+                            nmtecevent(cp, dt);
                     }
 
                     if (cp.cob == 000)
                     {
                         if (nmtevent != null) {
-                            DateTime date_time = base_date_time;
-                            long ticks = (long)cp.timestamp_us * 10;
-                            nmtevent(cp, date_time.AddTicks(ticks));
+                            nmtevent(cp, dt);
                         }
                     }
                     if (cp.cob == 0x80)
                     {
                         if (syncevent != null) {
-                            DateTime date_time = base_date_time;
-                            long ticks = (long)cp.timestamp_us * 10;
-                            syncevent(cp, date_time.AddTicks(ticks));
+                            syncevent(cp, dt);
                         }
                     }
 
@@ -457,27 +450,21 @@ namespace libCanopenSimple
                     {
                         if (emcyevent != null)
                         {
-                            DateTime date_time = base_date_time;
-                            long ticks = (long)cp.timestamp_us * 10;
-                            emcyevent(cp, date_time.AddTicks(ticks));
+                            emcyevent(cp, dt);
                         }
                     }
 
                     if (cp.cob == 0x100)
                     {
                         if (timeevent != null) {
-                            DateTime date_time = base_date_time;
-                            long ticks = (long)cp.timestamp_us * 10;
-                            timeevent(cp, date_time.AddTicks(ticks));
+                            timeevent(cp, dt);
                         }
                     }
 
                     if (cp.cob > 0x7E4 && cp.cob <= 0x7E5)
                     {
                         if (lssevent != null) {
-                            DateTime date_time = base_date_time;
-                            long ticks = (long)cp.timestamp_us * 10;
-                            lssevent(cp, date_time.AddTicks(ticks));
+                            lssevent(cp, dt);
                         }
                     }
                 }
@@ -485,9 +472,9 @@ namespace libCanopenSimple
                 if (pdos.Count > 0)
                 {
                     if (pdoevent != null) {
-                        DateTime date_time = base_date_time;
-                        long ticks = (long)cp.timestamp_us * 10;
-                        pdoevent(pdos.ToArray(), date_time.AddTicks(ticks));
+                        long ticks = (long)cp.timestamp_us * 10;    // In DateTime class, 1 tick == 100ns
+                        DateTime dt = base_date_time.AddTicks(ticks);
+                        pdoevent(pdos.ToArray(), dt);
                     }
                 }
 

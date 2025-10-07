@@ -76,6 +76,8 @@ namespace can_hw
         public UInt16 warning_cnt { private set; get; }
         public UInt16 error_passive_cnt { private set; get; }
         public UInt16 bus_off_cnt { private set; get; }
+        private UInt64 baseTimeUs;
+        private bool baseTimeInited = false;
         #endregion
 
         #region methods
@@ -177,7 +179,12 @@ namespace can_hw
                                                         ( (UInt64)( CANTimeStamp.millis ) * 1000 ) +
                                                         ( (UInt64)( CANTimeStamp.millis_overflow ) * ( 2 ^ 32 ) );
 
-                                        this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp_us));
+                                        if(baseTimeInited != true) {
+                                            baseTimeUs = timestamp_us;
+                                            baseTimeInited = true;
+                                        }
+
+                                        this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp_us - baseTimeUs));
                                     }
                                 }
                             } 
@@ -326,6 +333,7 @@ namespace can_hw
             this.m_ReadThread.Start();
 
             this.bConnected = true;
+            this.baseTimeInited = false;
 
             return true;
         }
