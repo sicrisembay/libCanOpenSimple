@@ -461,7 +461,7 @@ namespace libCanopenSimple
                         }
                     }
 
-                    if (cp.cob > 0x7E4 && cp.cob <= 0x7E5)
+                    if (cp.cob >= 0x7E4 && cp.cob <= 0x7E5)
                     {
                         if (lssevent != null) {
                             lssevent(cp, dt);
