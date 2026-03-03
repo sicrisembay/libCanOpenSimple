@@ -63,6 +63,7 @@
     <Compile Include="can.cs" />
     <Compile Include="pcan\peak\Include\PCANBasic.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="webserial_canfd.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

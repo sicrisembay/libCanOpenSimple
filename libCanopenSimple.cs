@@ -118,6 +118,7 @@ namespace libCanopenSimple
     public class libCanopenSimple
     {
         private can_hw.pcan_usb pcan;
+        private can_hw.webserial_canfd custom;
         private const int SDO_DEFAULT_TIMEOUT = 5;  // timeout in second
         public debuglevel dbglevel = debuglevel.DEBUG_NONE;
        
@@ -140,7 +141,6 @@ namespace libCanopenSimple
                 nmtstate[x] = nmt;
             }
 
-            this.pcan = new can_hw.pcan_usb();
         }
 
         #region driverinterface
@@ -170,9 +170,32 @@ namespace libCanopenSimple
 
         }
 #endif
+        public void open(string comPort, can_hw.BUS_SPEED bus_speed)
+        {
+            if (this.custom == null) {
+                this.custom = new can_hw.webserial_canfd();
+            }
+
+            if (this.custom.Connect(comPort, bus_speed)) {
+                this.custom.CanRxMsgEvent += this.Driver_pcan_rxmessage;
+                this.threadrun = true;
+                Thread thread = new Thread(new ThreadStart(this.asyncprocess));
+                thread.Name = "CANopen worker";
+                thread.Start();
+                if (connectionevent != null) {
+                    connectionevent(this, new ConnectionChangedEventArgs(true));
+                }
+            } else {
+                throw new Exception("Unable to connect to CAN adapter");
+            }
+        }
 
         public void open(TPCANHandle pcanHandle, TPCANBaudrate baudrate)
         {
+            if(this.pcan == null) {
+                this.pcan = new can_hw.pcan_usb();
+            }
+
             if (this.pcan.Connect(pcanHandle, baudrate)) {
                 this.pcan.CanRxMsgEvent += this.Driver_pcan_rxmessage;
                 this.threadrun = true;
@@ -214,7 +237,14 @@ namespace libCanopenSimple
 
             return driver.isOpen();
 #else
-            return this.pcan.bConnected;
+            bool isOpen = false;
+            if(this.pcan != null) {
+                isOpen = this.pcan.bConnected;
+            } else if(this.custom != null) {
+                isOpen = this.custom.bConnected;
+            }
+
+            return isOpen;
 #endif
         }
 
@@ -234,11 +264,18 @@ namespace libCanopenSimple
                 Driver_rxmessage(msg,bridge);
             }
 #else
-            if(this.pcan.bConnected) {
-                UInt32 can_id = p.cob;
-                byte[] data = new byte[p.len];
-                Array.Copy(p.data, data, p.len);
-                this.pcan.SendStandard(can_id, data);
+            UInt32 can_id = p.cob;
+            byte[] data = new byte[p.len];
+            Array.Copy(p.data, data, p.len);
+
+            if (this.pcan != null) {
+                if (this.pcan.bConnected) {
+                    this.pcan.SendStandard(can_id, data);
+                }
+            } else if(this.custom != null) {
+                if (this.custom.bConnected) {
+                    this.custom.SendStandard(can_id, data);
+                }
             }
 #endif
         }
@@ -268,16 +305,24 @@ namespace libCanopenSimple
         /// </summary>
         public void close()
         {
-            this.pcan.CanRxMsgEvent -= this.Driver_pcan_rxmessage;
-            threadrun = false;
+            if(this.pcan != null) {
+                this.pcan.CanRxMsgEvent -= this.Driver_pcan_rxmessage;
+                this.pcan.Disconnect();
+                this.pcan = null;
+            }
 
+            if(this.custom != null) {
+                this.custom.CanRxMsgEvent -= this.Driver_pcan_rxmessage;
+                this.custom.Disconnect();
+                this.custom = null;
+            }
+            threadrun = false;
 #if false
             if (driver == null)
                 return;
 
             driver.close();
 #else
-            this.pcan.Disconnect();
 #endif
             if (connectionevent != null) connectionevent(this, new ConnectionChangedEventArgs(false));
         }

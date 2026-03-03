@@ -13,6 +13,7 @@ namespace can_hw
     public enum SupportedVendor : byte
     {
         PEAK = 0,
+        CUSTOM,
     }
 
     public class CanRxMsgArgs : EventArgs
