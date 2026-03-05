@@ -269,16 +269,14 @@ namespace libCanopenSimple
             }
 #else
             UInt32 can_id = p.cob;
-            byte[] data = new byte[p.len];
-            Array.Copy(p.data, data, p.len);
             if(this.pcan != null) {
-                if (this.pcan.SendStandard(can_id, data)) {
+                if (this.pcan.SendStandard(can_id, p.data)) {
                     if (sendPacketEvent != null) {
                         sendPacketEvent(p, DateTime.Now);
                     }
                 }
             } else if(this.custom != null) {
-                if (this.custom.SendStandard(can_id, data)) {
+                if (this.custom.SendStandard(can_id, p.data)) {
                     if (sendPacketEvent != null) {
                         sendPacketEvent(p, DateTime.Now);
                     }
