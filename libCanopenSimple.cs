@@ -52,6 +52,7 @@ namespace libCanopenSimple
         public UInt16 cob;
         public byte len;
         public byte[] data;
+        public UInt64 timestamp_us;
         public bool bridge = false;
 
         public canpacket()
@@ -121,6 +122,7 @@ namespace libCanopenSimple
         private can_hw.webserial_canfd custom;
         private const int SDO_DEFAULT_TIMEOUT = 5;  // timeout in second
         public debuglevel dbglevel = debuglevel.DEBUG_NONE;
+        private DateTime base_date_time;
        
         DriverInstance driver;
 
@@ -141,6 +143,8 @@ namespace libCanopenSimple
                 nmtstate[x] = nmt;
             }
 
+            this.base_date_time = DateTime.Now;
+            this.pcan = new can_hw.pcan_usb();
         }
 
         #region driverinterface
@@ -199,6 +203,7 @@ namespace libCanopenSimple
             if (this.pcan.Connect(pcanHandle, baudrate)) {
                 this.pcan.CanRxMsgEvent += this.Driver_pcan_rxmessage;
                 this.threadrun = true;
+                this.base_date_time = DateTime.Now;
                 Thread thread = new Thread(new ThreadStart(this.asyncprocess));
                 thread.Name = "CANopen worker";
                 thread.Start();
@@ -267,14 +272,10 @@ namespace libCanopenSimple
             UInt32 can_id = p.cob;
             byte[] data = new byte[p.len];
             Array.Copy(p.data, data, p.len);
-
-            if (this.pcan != null) {
-                if (this.pcan.bConnected) {
-                    this.pcan.SendStandard(can_id, data);
-                }
-            } else if(this.custom != null) {
-                if (this.custom.bConnected) {
-                    this.custom.SendStandard(can_id, data);
+                if(this.pcan.SendStandard(can_id, data)) {
+                    if(sendPacketEvent != null) {
+                        sendPacketEvent(p, DateTime.Now);
+                    }
                 }
             }
 #endif
@@ -292,12 +293,25 @@ namespace libCanopenSimple
 
         private void Driver_pcan_rxmessage(object sender, can_hw.CanRxMsgArgs e)
         {
+            if (e.msgType == (byte)TPCANMessageType.PCAN_MESSAGE_STANDARD) {
             canpacket newPacket = new canpacket();
             newPacket.cob = Convert.ToUInt16(e.msgId & 0x0000FFFF);
             newPacket.len = e.len;
             newPacket.data = new byte[e.len];
+                newPacket.timestamp_us = e.timestamp;
             Array.Copy(e.data, newPacket.data, e.len);
             packetqueue.Enqueue(newPacket);
+            } else {
+                string strMsg = "MsgType: " + ( (TPCANMessageType)e.msgType ).ToString();
+                if((e.msgType == (byte)TPCANMessageType.PCAN_MESSAGE_STATUS) ||
+                   (e.msgType == (byte)TPCANMessageType.PCAN_MESSAGE_ERRFRAME)) {
+                    strMsg += " Data: ";
+                    for(int i = 0; i < e.len; i++) {
+                        strMsg += e.data[i].ToString("X2") + " ";
+        }
+                }
+                Console.WriteLine(strMsg);
+            }
         }
 
         /// <summary>
@@ -335,6 +349,9 @@ namespace libCanopenSimple
 
         public delegate void ConnectionEvent(object sender, EventArgs e);
         public event ConnectionEvent connectionevent;
+
+        public delegate void SendPacketEvent(canpacket p, DateTime dt);
+        public event SendPacketEvent sendPacketEvent;
 
         public delegate void PacketEvent(canpacket p, DateTime dt);
         public event PacketEvent packetevent;
@@ -395,11 +412,13 @@ namespace libCanopenSimple
 
                 while (packetqueue.TryDequeue(out cp))
                 {
+                    long ticks = (long)cp.timestamp_us * 10;    // In DateTime class, 1 tick == 100ns
+                    DateTime dt = base_date_time.AddTicks(ticks);
 
                     if (cp.bridge == false)
                     {
                         if(packetevent!=null)
-                            packetevent(cp, DateTime.Now);
+                            packetevent(cp, dt);
                     }
 
                     //PDO 0x180 -- 0x57F
@@ -427,15 +446,17 @@ namespace libCanopenSimple
                                     SDOcallbacks.Remove(cp.cob);
                                 }
                             }
-                            if (sdoevent != null)
-                                sdoevent(cp, DateTime.Now);
+                            if (sdoevent != null) {
+                                sdoevent(cp, dt);
                         }
+                    }
                     }
 
                     if (cp.cob >= 0x600 && cp.cob < 0x680)
                     {
-                        if (sdoevent != null)
-                            sdoevent(cp,DateTime.Now);
+                        if (sdoevent != null) {
+                            sdoevent(cp, dt);
+                    }
                     }
 
                     //NMT
@@ -444,49 +465,55 @@ namespace libCanopenSimple
                         byte node = (byte)(cp.cob & 0x07F);
 
                         nmtstate[node].changestate((NMTState.e_NMTState)cp.data[0]);
-                        nmtstate[node].lastping = DateTime.Now;
+                        nmtstate[node].lastping = dt;
 
                         if (nmtecevent != null)
-                            nmtecevent(cp, DateTime.Now);
+                            nmtecevent(cp, dt);
                     }
 
                     if (cp.cob == 000)
                     {
-
-                        if (nmtevent != null)
-                            nmtevent(cp, DateTime.Now);
+                        if (nmtevent != null) {
+                            nmtevent(cp, dt);
+                    }
                     }
                     if (cp.cob == 0x80)
                     {
-                        if (syncevent != null)
-                            syncevent(cp, DateTime.Now);
+                        if (syncevent != null) {
+                            syncevent(cp, dt);
+                    }
                     }
 
                     if (cp.cob > 0x080 && cp.cob <= 0xFF)
                     {
                         if (emcyevent != null)
                         {
-                            emcyevent(cp, DateTime.Now);
+                            emcyevent(cp, dt);
                         }
                     }
 
                     if (cp.cob == 0x100)
                     {
-                        if (timeevent != null)
-                            timeevent(cp, DateTime.Now);
+                        if (timeevent != null) {
+                            timeevent(cp, dt);
+                    }
                     }
 
-                    if (cp.cob > 0x7E4 && cp.cob <= 0x7E5)
+                    if (cp.cob >= 0x7E4 && cp.cob <= 0x7E5)
                     {
-                        if (lssevent != null)
-                            lssevent(cp, DateTime.Now);
+                        if (lssevent != null) {
+                            lssevent(cp, dt);
                     }
+                }
                 }
 
                 if (pdos.Count > 0)
                 {
-                    if (pdoevent != null)
-                        pdoevent(pdos.ToArray(),DateTime.Now);
+                    if (pdoevent != null) {
+                        long ticks = (long)cp.timestamp_us * 10;    // In DateTime class, 1 tick == 100ns
+                        DateTime dt = base_date_time.AddTicks(ticks);
+                        pdoevent(pdos.ToArray(), dt);
+                }
                 }
 
                 SDO.kick_SDO();
@@ -810,5 +837,47 @@ namespace libCanopenSimple
 
 #endregion
 
+        #region CAN Statistics
+        public can_hw.BusState CanStat_get_state()
+        {
+            return this.pcan.busState;
+    }
+        public byte CanStat_get_REC()
+        {
+            return this.pcan.REC;
+}
+        public byte CanStat_get_TEC()
+        {
+            return this.pcan.TEC;
+        }
+        public byte CanStat_get_max_REC()
+        {
+            return this.pcan.max_REC;
+        }
+        public byte CanStat_get_max_TEC()
+        {
+            return this.pcan.max_TEC;
+        }
+        public UInt32 CanStat_get_total_tx_cnt()
+        {
+            return this.pcan.total_tx_cnt;
+        }
+        public UInt32 CanStat_get_total_rx_cnt()
+        {
+            return this.pcan.total_rx_cnt;
+        }
+        public UInt16 CanStat_get_warning_cnt()
+        {
+            return this.pcan.warning_cnt;
+        }
+        public UInt16 CanStat_get_error_passive_cnt()
+        {
+            return this.pcan.error_passive_cnt;
+        }
+        public UInt16 CanStat_get_busoff_cnt()
+        {
+            return this.pcan.bus_off_cnt;
+        }
+        #endregion
     }
 }
