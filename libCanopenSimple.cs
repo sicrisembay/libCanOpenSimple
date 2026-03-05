@@ -144,7 +144,6 @@ namespace libCanopenSimple
             }
 
             this.base_date_time = DateTime.Now;
-            this.pcan = new can_hw.pcan_usb();
         }
 
         #region driverinterface
@@ -272,14 +271,22 @@ namespace libCanopenSimple
             UInt32 can_id = p.cob;
             byte[] data = new byte[p.len];
             Array.Copy(p.data, data, p.len);
-                if(this.pcan.SendStandard(can_id, data)) {
-                    if(sendPacketEvent != null) {
+            if(this.pcan != null) {
+                if (this.pcan.SendStandard(can_id, data)) {
+                    if (sendPacketEvent != null) {
+                        sendPacketEvent(p, DateTime.Now);
+                    }
+                }
+            } else if(this.custom != null) {
+                if (this.custom.SendStandard(can_id, data)) {
+                    if (sendPacketEvent != null) {
                         sendPacketEvent(p, DateTime.Now);
                     }
                 }
             }
 #endif
         }
+
 
         /// <summary>
         /// Recieved message callback handler

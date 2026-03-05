@@ -58,7 +58,7 @@ namespace can_hw
         public UInt32 rxCount { get; private set; }
         public bool bConnected { private set; get; }
         private bool can_bus_started = false;
-        public event CanRxMsgHandler CanRxMsgEvent;
+        public event CanMsgHandler CanRxMsgEvent;
         //public event CanTxHook CanTxHookEvent;
         #endregion // members
 
@@ -93,6 +93,10 @@ namespace can_hw
 
         public bool SendStandard(UInt32 msgId, byte[] data)
         {
+            if(!this.bConnected) {
+                Console.WriteLine("webserial_canfd: Not Connected");
+                return false;
+            }
             Console.WriteLine("Tx: msgId: " + msgId.ToString("X4") + ", data: " + BitConverter.ToString(data));
             Int32 length = FRAME_OVERHEAD + 1 + 1 + 4 + 1; // 1 byte (cmd), 1 byte (type), 4 bytes (msgId), 1 bytes (dlc)
             byte frameType = 0x2; // CAN-CC and BRS_OFF
@@ -127,8 +131,8 @@ namespace can_hw
         private void ParseValidSerialPacket(byte[] packet)
         {
             // Timestamp is 6 bytes
-            UInt32 timestamp = BitConverter.ToUInt32(packet, TIMESTAMP_OFFSET);
-            float fTimestamp = ( (float)timestamp ) * 0.00001f;
+            UInt32 timestamp_us = BitConverter.ToUInt32(packet, TIMESTAMP_OFFSET) * 10;
+            float fTimestamp = ( (float)timestamp_us ) * 0.000001f;
 
             UInt16 seq = BitConverter.ToUInt16(packet, PACKET_SEQ_OFFSET);
 
@@ -199,7 +203,7 @@ namespace can_hw
                         if((frameType & 0x04) != 0) {
                             msgType |= ( 0x02 ); // PCAN_MESSAGE_EXTENDED
                         }
-                        this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp));
+                        this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp_us));
                     }
                     break;
                 }

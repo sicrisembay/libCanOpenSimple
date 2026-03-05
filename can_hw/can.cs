@@ -158,7 +158,7 @@ namespace can_hw
                     do
                     {
                         try {
-                        stsResult = PCANBasic.Read(this.m_PcanHandle, out CANMsg, out CANTimeStamp);
+                            stsResult = PCANBasic.Read(this.m_PcanHandle, out CANMsg, out CANTimeStamp);
                         } catch (Exception ex) {
                             Console.WriteLine(ex.Message);
                             continue;
@@ -167,25 +167,25 @@ namespace can_hw
                             if (CANMsg.MSGTYPE == TPCANMessageType.PCAN_MESSAGE_STANDARD) {
                                 total_rx_cnt++;
                                 if (( this.CanRxMsgEvent != null )) {
-                                UInt32 msgId = CANMsg.ID;
-                                byte msgType = (byte)CANMsg.MSGTYPE;
-                                byte[] data = null;
-                                if (CANMsg.LEN > 0) {
-                                    data = new byte[CANMsg.LEN];
-                                    Array.Copy(CANMsg.DATA, 0, data, 0, data.Length);
+                                    UInt32 msgId = CANMsg.ID;
+                                    byte msgType = (byte)CANMsg.MSGTYPE;
+                                    byte[] data = null;
+                                    if (CANMsg.LEN > 0) {
+                                        data = new byte[CANMsg.LEN];
+                                        Array.Copy(CANMsg.DATA, 0, data, 0, data.Length);
 
-                                    UInt64 timestamp_us = (UInt64)( CANTimeStamp.micros ) +
-                                                    ( (UInt64)( CANTimeStamp.millis ) * 1000 ) +
-                                                    ( (UInt64)( CANTimeStamp.millis_overflow ) * ( 2 ^ 32 ) );
+                                        UInt64 timestamp_us = (UInt64)( CANTimeStamp.micros ) +
+                                                        ( (UInt64)( CANTimeStamp.millis ) * 1000 ) +
+                                                        ( (UInt64)( CANTimeStamp.millis_overflow ) * ( 2 ^ 32 ) );
 
                                         if(baseTimeInited != true) {
                                             baseTimeUs = timestamp_us;
                                             baseTimeInited = true;
-                                }
+                                        }
 
                                         this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp_us - baseTimeUs));
-                            }
-                        }
+                                    }
+                                }
                             } 
                             else if (CANMsg.MSGTYPE == TPCANMessageType.PCAN_MESSAGE_ERRFRAME) {
                                 REC = CANMsg.DATA[2];
