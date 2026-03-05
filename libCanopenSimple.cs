@@ -845,43 +845,103 @@ namespace libCanopenSimple
         #region CAN Statistics
         public can_hw.BusState CanStat_get_state()
         {
-            return this.pcan.busState;
-    }
+            can_hw.BusState state = can_hw.BusState.BUS_OK;
+            if (this.pcan != null) {
+                state = this.pcan.busState;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return state;
+        }
         public byte CanStat_get_REC()
         {
-            return this.pcan.REC;
-}
+            byte count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.REC;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
+        }
         public byte CanStat_get_TEC()
         {
-            return this.pcan.TEC;
+            byte count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.TEC;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         public byte CanStat_get_max_REC()
         {
-            return this.pcan.max_REC;
+            byte count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.max_REC;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         public byte CanStat_get_max_TEC()
         {
-            return this.pcan.max_TEC;
+            byte count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.max_TEC;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         public UInt32 CanStat_get_total_tx_cnt()
         {
-            return this.pcan.total_tx_cnt;
+            UInt32 count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.total_tx_cnt;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         public UInt32 CanStat_get_total_rx_cnt()
         {
-            return this.pcan.total_rx_cnt;
+            UInt32 count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.total_rx_cnt;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         public UInt16 CanStat_get_warning_cnt()
         {
-            return this.pcan.warning_cnt;
+            UInt16 count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.warning_cnt;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         public UInt16 CanStat_get_error_passive_cnt()
         {
-            return this.pcan.error_passive_cnt;
+            UInt16 count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.error_passive_cnt;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         public UInt16 CanStat_get_busoff_cnt()
         {
-            return this.pcan.bus_off_cnt;
+            UInt16 count = 0;
+            if (this.pcan != null) {
+                count = this.pcan.bus_off_cnt;
+            } else if (this.custom != null) {
+                /// TODO
+            }
+            return count;
         }
         #endregion
     }
