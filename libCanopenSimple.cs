@@ -859,7 +859,11 @@ namespace libCanopenSimple
             if (this.pcan != null) {
                 count = this.pcan.REC;
             } else if (this.custom != null) {
-                /// TODO
+                if(this.custom.REC > 255) {
+                    count = 255;
+                } else {
+                    count = (byte)( this.custom.REC & 0x00FF );
+                }
             }
             return count;
         }
@@ -869,7 +873,11 @@ namespace libCanopenSimple
             if (this.pcan != null) {
                 count = this.pcan.TEC;
             } else if (this.custom != null) {
-                /// TODO
+                if (this.custom.TEC > 255) {
+                    count = 255;
+                } else {
+                    count = (byte)( this.custom.TEC & 0x00FF );
+                }
             }
             return count;
         }
@@ -879,7 +887,11 @@ namespace libCanopenSimple
             if (this.pcan != null) {
                 count = this.pcan.max_REC;
             } else if (this.custom != null) {
-                /// TODO
+                if (this.custom.max_REC > 255) {
+                    count = 255;
+                } else {
+                    count = (byte)( this.custom.max_REC & 0x00FF );
+                }
             }
             return count;
         }
@@ -889,7 +901,11 @@ namespace libCanopenSimple
             if (this.pcan != null) {
                 count = this.pcan.max_TEC;
             } else if (this.custom != null) {
-                /// TODO
+                if (this.custom.max_TEC > 255) {
+                    count = 255;
+                } else {
+                    count = (byte)( this.custom.max_TEC & 0x00FF );
+                }
             }
             return count;
         }
@@ -899,7 +915,7 @@ namespace libCanopenSimple
             if (this.pcan != null) {
                 count = this.pcan.total_tx_cnt;
             } else if (this.custom != null) {
-                /// TODO
+                count = this.custom.total_tx_cnt;
             }
             return count;
         }
@@ -909,7 +925,7 @@ namespace libCanopenSimple
             if (this.pcan != null) {
                 count = this.pcan.total_rx_cnt;
             } else if (this.custom != null) {
-                /// TODO
+                count = this.custom.total_rx_cnt;
             }
             return count;
         }
@@ -929,7 +945,7 @@ namespace libCanopenSimple
             if (this.pcan != null) {
                 count = this.pcan.error_passive_cnt;
             } else if (this.custom != null) {
-                /// TODO
+                count = this.custom.error_passive_cnt;
             }
             return count;
         }

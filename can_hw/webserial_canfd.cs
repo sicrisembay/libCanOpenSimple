@@ -60,6 +60,13 @@ namespace can_hw
         private bool can_bus_started = false;
         public event CanMsgHandler CanRxMsgEvent;
         //public event CanTxHook CanTxHookEvent;
+        public UInt16 REC { private set; get; }
+        public UInt16 max_REC { private set; get; }
+        public UInt16 TEC { private set; get; }
+        public UInt16 max_TEC { private set; get; }
+        public UInt32 total_tx_cnt { private set; get; }
+        public UInt32 total_rx_cnt { private set; get; }
+        public UInt16 error_passive_cnt { private set; get; }
         #endregion // members
 
         #region methods
@@ -128,6 +135,12 @@ namespace can_hw
             return true;
         }
 
+        public void ClearStatistics()
+        {
+            total_rx_cnt = 0;
+            total_tx_cnt = 0;
+        }
+
         private void ParseValidSerialPacket(byte[] packet)
         {
             // Timestamp is 6 bytes
@@ -159,7 +172,9 @@ namespace can_hw
                     Console.WriteLine(fTimestamp.ToString() + ": Started: " + sts.ToString("X2"));
                     if(sts != 0) {
                         /// TODO: Handle this
+                        break;
                     }
+                    can_bus_started = true;
                     break;
                 }
                 case CMD_CAN_STOP: {
@@ -167,12 +182,16 @@ namespace can_hw
                     Console.WriteLine(fTimestamp.ToString() + ": Stopped: " + sts.ToString("X2"));
                     if (sts != 0) {
                         /// TODO: Handle this
+                        break;
                     }
+                    can_bus_started = false;
                     break;
                 }
                 case CMD_SEND_DOWNSTREAM: {
                     byte sts = payload[1];
-                    if (sts != 0) {
+                    if (sts == 0) {
+                        total_tx_cnt++;
+                    } else {
                         Console.WriteLine(fTimestamp.ToString() + ": CMD_SEND_DOWNSTREAM: Error:" + sts.ToString("X2"));
                     }
                     break;
@@ -205,6 +224,7 @@ namespace can_hw
                         }
                         this.CanRxMsgEvent(this, new CanRxMsgArgs(msgId, msgType, data, timestamp_us));
                     }
+                    total_rx_cnt++;
                     break;
                 }
                 case CMD_PROTOCOL_STATUS: {
@@ -250,9 +270,16 @@ namespace can_hw
                      * Payload[11-12]: stat_downstream_packet_loss_cnt (uint16_t, little-endian)
                      * Payload[13-14]: stat_upstream_packet_loss_cnt (uint16_t, little-endian)
                      */
-                    UInt16 TxErrorCntMax = BitConverter.ToUInt16(payload, 3);
-                    UInt16 RxErrorCntMax = BitConverter.ToUInt16(payload, 7);
-
+                    TEC = BitConverter.ToUInt16(payload, 1);
+                    max_TEC = BitConverter.ToUInt16(payload, 3);
+                    REC = BitConverter.ToUInt16(payload, 5);
+                    max_REC = BitConverter.ToUInt16(payload, 7);
+                    error_passive_cnt = BitConverter.ToUInt16(payload, 9);
+                    Console.WriteLine(fTimestamp.ToString() + ": TEC: " + TEC +
+                        ", Max TEC:" + max_TEC +
+                        ", REC: " + REC +
+                        ", Max REC: " + max_REC +
+                        ", PassiveErr: " + error_passive_cnt);
                     break;
                 }
                 default: {
