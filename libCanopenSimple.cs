@@ -26,15 +26,15 @@ namespace libCanopenSimple
 
     public enum BUSSPEED
     {
-        BUS_10Kbit = 0,
-        BUS_20Kbit,
-        BUS_50Kbit,
-        BUS_100Kbit,
-        BUS_125Kbit,
-        BUS_250Kbit,
-        BUS_500Kbit,
+        BUS_1Mbit = 0,
         BUS_800Kbit,
-        BUS_1Mbit,
+        BUS_500Kbit,
+        BUS_250Kbit,
+        BUS_125Kbit,
+        BUS_100Kbit,
+        BUS_50Kbit,
+        BUS_20Kbit,
+        BUS_10Kbit,
     }
 
     public enum debuglevel

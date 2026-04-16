@@ -9,15 +9,15 @@ namespace can_hw
 {
     public enum BUS_SPEED
     {
-        BUS_10Kbit = 0,
-        BUS_20Kbit,
-        BUS_50Kbit,
-        BUS_100Kbit,
-        BUS_125Kbit,
-        BUS_250Kbit,
-        BUS_500Kbit,
+        BUS_1Mbit = 0,
         BUS_800Kbit,
-        BUS_1Mbit,
+        BUS_500Kbit,
+        BUS_250Kbit,
+        BUS_125Kbit,
+        BUS_100Kbit,
+        BUS_50Kbit,
+        BUS_20Kbit,
+        BUS_10Kbit,
     }
 
     public class webserial_canfd
@@ -55,6 +55,7 @@ namespace can_hw
         private SerialPort serial_port;
         private const UInt32 RXBUFFERSIZE = 4096;
         private RingBuffer serialPort_rxBuffer;
+        private BUS_SPEED bus_speed = BUS_SPEED.BUS_1Mbit;
         public UInt32 rxCount { get; private set; }
         public bool bConnected { private set; get; }
         private bool can_bus_started = false;
@@ -83,6 +84,7 @@ namespace can_hw
             serial_port.Open();
             serial_port.DataReceived += SerialPort_DataReceived;
             bConnected = true;
+            this.bus_speed = bus_speed;
             GetDongleID();
             return true;
         }
@@ -157,11 +159,16 @@ namespace can_hw
             switch(cmd) {
                 case CMD_GET_DEVICE_ID: {
                     byte DevID = payload[1];
+                    byte version_major = payload[2];
+                    byte version_minor = payload[3];
+                    byte version_patch = payload[4];
                     Console.WriteLine(fTimestamp.ToString() + ": Dongle Device ID: " + DevID.ToString("X2"));
                     if(DevID != DEVICE_ID) {
                         Console.WriteLine("Unknown Device ID");
                         break;
                     }
+                    Console.WriteLine("version: " + version_major + "." + version_minor.ToString("D2") + "." +
+                                    version_patch.ToString("D2"));
                     if(!can_bus_started) {
                         CAN_start();
                     }
@@ -403,10 +410,12 @@ namespace can_hw
         private bool CAN_start()
         {
             bool ret = true;
-            byte[] packet = new byte[FRAME_OVERHEAD + 1];
+            byte[] packet = new byte[FRAME_OVERHEAD + 3];
             packet[0] = TAG_SOF;
             Array.Copy(BitConverter.GetBytes((UInt16)packet.Length), 0, packet, LEN_OFFSET, 2);
             packet[COMMAND_OFFSET] = CMD_CAN_START;
+            packet[COMMAND_OFFSET + 1] = (byte)this.bus_speed;
+            packet[COMMAND_OFFSET + 2] = (byte)this.bus_speed;
             Int32 checksum = CalculateChecksum(packet);
             packet[packet.Length - 1] = Convert.ToByte(( -checksum ) & 0xFF);
 
